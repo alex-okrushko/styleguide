@@ -14,9 +14,7 @@
 <h1>TypeScript style guide</h1>
 
 <section>
-   This is the external guide that's based on the internal Google version but
-   has been adjusted for the broader audience. There is no automatic deployment
-   process for this version as it's pushed on-demand by volunteers.
+This is the external guide that's based on the internal Google version but has been adjusted for the broader audience. There is no automatic deployment process for this version as it's pushed on-demand by volunteers.
 
 <p>It contains both rules and best practices. Choose those that work best for your team.
 </p></section>
@@ -143,25 +141,6 @@ declared <code>lowerCamelCase</code>.</p></li>
 <li>
 
 </li>
-<li><p><strong>React Components</strong>: When required by JSX, components must be
-<code>UpperCamelCase</code> no matter how the component is implemented (e.g. function,
-es6 class, <code>React.createClass</code>).</p>
-
-<pre><code class="language-ts good">function GoLink(props: GoLinkProps) {
-  return &lt;a href={...}&gt;...&lt;/a&gt;;
-}
-
-class MyDialog extends React.Component&lt;MyDialogProps, MyDialogState&gt; {
-  ...
-}
-</code></pre>
-
-<pre><code class="language-ts bad">// Lowercased functions cannot be used as JSX elements because the
-// transpiler cannot distinguish them from HTML tags.
-function goLink(props: GoLinkProps) {
-  return &lt;a href={...}&gt;...&lt;/a&gt;;
-}
-</code></pre></li>
 </ul>
 
 <h4 id="aliases">Aliases</h4>
@@ -501,8 +480,9 @@ Why?
 
 <p> Private identifiers cause substantial emit size and
 performance regressions when down-leveled by TypeScript, and are unsupported
-before ES2015. At the same time, they do not offer substantial benefits when
-static type checking is used to enforce visibility.</p>
+before ES2015. They can only be downleveled to ES2015, not lower. At the same
+time, they do not offer substantial benefits when static type checking is used
+to enforce visibility.</p>
 
 </section>
 
@@ -563,7 +543,26 @@ containing class.</p>
 can also be used as needed. For example, Angular and Polymer template properties
 should use <code>public</code>, but AngularJS should use <code>protected</code>.</p>
 
-<h4 id="getters-and-setters-accessors">Getters and Setters (Accessors)</h4>
+<p>TypeScript code must not not use <code>obj['foo']</code> to bypass the visibility of a
+property. See
+<a href="http://go/typescript/testing#export-private-visibility">testing and private visibility</a>
+if you want to access protected fields from a test.</p>
+
+<section class="zippy">
+Why?
+
+<p>When a property is <code>private</code>, you are declaring to both automated systems and
+humans that the property accesses are scoped to the methods of the declaring
+class, and they will rely on that. For example, a check for unused code will
+flag a private property that appears to be unused, even if some other file
+manages to bypass the visibility restriction.</p>
+
+<p>Though it may appear that <code>obj['foo']</code> can bypass visibility in the TypeScript
+compiler, this pattern can be broken by rearranging the build rules,
+and also violates <a href="#optimization-compatibility">optimization compatibility</a>.
+</p></section>
+
+<h4>Getters and Setters (Accessors)</h4>
 
 <p>Getters and setters for class members may be used. The getter method must be a
 <a href="https://en.wikipedia.org/wiki/Pure_function">pure function</a> (i.e., result is
@@ -1368,6 +1367,12 @@ let someProperty: {memberC: string, memberD: number};
 console.log(x['someField']);
 console.log(x.someField);
 </code></pre>
+
+<p>Code must not rely on disabling renaming, but must rather declare all properties
+that are external to the application to prevent renaming:</p>
+
+<p>Prefer for code to account for a possible property-renaming optimization, and
+declare all properties that are external to the application to prevent renaming:</p>
 
 <pre><code class="language-ts good">// Good: declaring an interface
 declare interface ServerInfoJson {
@@ -2351,6 +2356,83 @@ generics.</p>
 what the other code in the same file is already doing (<q>be consistent</q>). If that
 doesn't resolve the question, consider emulating the other files in the same
 directory.</p>
+
+<h3 id="goals">Goals</h3>
+
+<p>In general, engineers usually know best about what's needed in their code, so if
+there are multiple options and the choice is situation dependent, we should let
+decisions be made locally. So the default answer should be <q>leave it out</q>.</p>
+
+<p>The following points are the exceptions, which are the reasons we have some
+global rules. Evaluate your style guide proposal against the following:</p>
+
+<ol>
+<li><p><strong>Code should avoid patterns that are known to cause problems, especially
+for users new to the language.</strong></p>
+
+<p>Examples:</p>
+
+<ul>
+<li>The <code>any</code> type is easy to misuse (is that variable <em>really</em> both a
+number and callable as a function?), so we have recommendations for how
+to use it.</li>
+<li>TypeScript <code>namespace</code> causes trouble for Closure optimization.</li>
+<li>Periods within filenames make them ugly/confusing to import from
+JavaScript.</li>
+<li>Static functions in classes optimize confusingly, while often file-level
+functions accomplish the same goal.</li>
+<li>Users unaware of the <code>private</code> keyword will attempt to obfuscate their
+function names with underscores.</li>
+</ul></li>
+<li><p><strong>Code across
+projects should be consistent across
+irrelevant variations.</strong></p>
+
+<p>When there are two options that are equivalent in a superficial way, we
+should consider choosing one just so we don't divergently evolve for no
+reason and avoid pointless debates in code reviews.</p>
+
+<p>We should usually match JavaScript style as well, because people often write
+both languages together.</p>
+
+<p>Examples:</p>
+
+<ul>
+<li>The capitalization style of names.</li>
+<li><code>x as T</code> syntax vs the equivalent <code>&lt;T&gt;x</code> syntax (disallowed).</li>
+<li><code>Array&lt;[number, number]&gt;</code> vs <code>[number, number][]</code>.</li>
+</ul></li>
+<li><p><strong>Code should be maintainable in the long term.</strong></p>
+
+<p>Code usually lives longer than the original author works on it, and the
+TypeScript team must keep all of Google working into the future.</p>
+
+<p>Examples:</p>
+
+<ul>
+<li>We use software to automate changes to code, so code is autoformatted so
+it's easy for software to meet whitespace rules.</li>
+<li>We require a single set of Closure compilation flags, so a given TS
+library can be written assuming a specific set of flags, and users can
+always safely use a shared library.</li>
+<li>Code must import the libraries it uses (<q>strict deps</q>) so that a
+refactor in a dependency doesn't change the dependencies of its users.</li>
+<li>We ask users to write tests. Without tests we cannot have confidence
+that changes that we make to the language, or google3-wide library
+changes, don't break users.</li>
+</ul></li>
+<li><p><strong>Code reviewers should be focused on improving the quality of the code, not
+enforcing arbitrary rules.</strong></p>
+
+<p>If it's possible to implement your rule as an
+
+automated check that is often a good sign.
+This also supports principle 3.</p>
+
+<p>If it really just doesn't matter that much -- if it's an obscure corner of
+the language or if it avoids a bug that is unlikely to occur -- it's
+probably worth leaving out.</p></li>
+</ol>
 
 </div>
 </body>
